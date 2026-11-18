@@ -1,0 +1,22 @@
+{
+  "thresholdSec": 900,
+  "blockSettings": true,
+  "debug": true,
+  "watchPkgs": [
+    "com.audiovisual.live",
+    "com.cibn.tv",
+    "com.cm.live",
+    "com.github.itvbox.ruyitv",
+    "com.huawei.himovceie",
+    "com.newtv.cboxtv",
+    "com.today.player",
+    "com.wtj.cn.alipantv",
+    "yhzb.player.plus"
+  ],
+  "settingsPkgs": [
+    "com.android.tv.settings",
+    "com.android.settings",
+    "com.tcl.settings",
+    "com.android.phone"
+  ]
+}

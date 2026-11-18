@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<!--QG-QUIZ-OK v2.2-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>电视答题门 v2 · 四科</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;user-select:none}
+  html,body{width:100%;height:100%;overflow:hidden;margin:0;background:#000;
+    font-family:"Microsoft YaHei","Microsoft YaHei UI",sans-serif}
+  .film{position:absolute;inset:0;background:linear-gradient(135deg,#1a2a1e,#0d1b2a 50%,#241a2a);
+    background-size:cover;background-position:center}
+  .film::after{content:"";position:absolute;inset:0;
+    background:radial-gradient(60% 50% at 50% 45%, rgba(120,200,255,.14), transparent 70%)}
+
+  /* 纯色遮罩：3G 内存的电视叠 blur 会卡，按评审意见去掉 */
+  .gate{position:absolute;left:0;top:0;width:100%;height:100%;
+    background:rgba(6,9,13,.95);display:flex;flex-direction:column;align-items:center;
+    padding:3.5vh 0 2vh;box-sizing:border-box}
+  .gate.hidden{display:none}
+
+  .title{font-size:33px;font-weight:700;color:#fff;letter-spacing:3px;
+    text-shadow:0 4px 26px rgba(0,0,0,.6)}
+  .title .dot{color:#22c55e}
+  .hint{font-size:19px;color:#5c6675;letter-spacing:1px;margin-top:10px}
+
+  .meta{position:absolute;left:64px;top:50px}
+  .meta .l1{font-size:21px;color:#7d8798;letter-spacing:2px}
+  .meta .l2{font-size:19px;color:#4f5a6a;letter-spacing:1px;margin-top:6px}
+
+  .stem{width:84%;max-width:1600px;margin:3.4vh auto 0;text-align:center;
+    font-size:44px;line-height:1.4;font-weight:600;color:#fff;letter-spacing:.5px;
+    word-break:break-word;overflow-wrap:anywhere;flex:0 0 auto;max-height:270px;overflow:hidden}
+
+  .opts{width:56%;max-width:1080px;min-width:0;align-self:center;flex:0 1 auto;
+    margin:24px auto 0;display:flex;flex-direction:column;gap:16px;
+    justify-content:center;overflow:hidden}
+  .opt{min-height:7.6vh;height:auto;width:100%;box-sizing:border-box;border-radius:16px;
+    display:flex;align-items:center;padding:1.4vh 2.2%;gap:1.8%;
+    background:rgba(46,68,54,.62);border:1px solid rgba(255,255,255,.075);
+    box-shadow:0 10px 26px rgba(0,0,0,.28);
+    transition:background .18s ease, border-color .18s ease, box-shadow .18s ease}
+  .opt .key{width:52px;height:52px;border-radius:12px;flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;font-size:25px;font-weight:700;
+    color:#b9cdbf;background:rgba(255,255,255,.075);transition:background .18s,color .18s}
+  .opt .txt{font-size:34px;font-weight:600;color:#eef5f0;letter-spacing:.4px;
+    min-width:0;flex:1 1 auto;word-break:break-word;overflow-wrap:anywhere;line-height:1.3}
+
+  .opt.focus{background:rgba(58,92,68,.88);border-color:rgba(120,230,160,.65);
+    box-shadow:0 0 0 2px rgba(34,197,94,.55), 0 0 34px rgba(34,197,94,.26), 0 14px 34px rgba(0,0,0,.4)}
+  .opt.focus .key{background:rgba(34,197,94,.9);color:#08210f}
+  .opt.right{background:#16a34a !important;border-color:#34d399 !important;opacity:1 !important}
+  .opt.right .key{background:#fff !important;color:#08651f !important}
+  .opt.wrong{background:#c0262f !important;border-color:#ff6b6b !important;opacity:1 !important}
+  .opt.wrong .key{background:#fff !important;color:#a1121b !important}
+  .opt.dim{opacity:.24 !important}
+  .still .opt{transition:none !important}
+
+  .bar{flex:0 0 auto;display:flex;justify-content:center;align-items:center;
+    gap:44px;font-size:22px;color:#8d99a8;letter-spacing:1px;padding-top:16px}
+  .bar b{color:#ffb08a;font-weight:700}
+  .toast{position:absolute;left:50%;bottom:96px;transform:translateX(-50%);
+    font-size:25px;letter-spacing:1px;color:#ffd6a8;opacity:0;transition:opacity .2s;text-align:center}
+  .toast.on{opacity:1}
+
+  .lock{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    flex-direction:column;gap:16px;background:rgba(6,9,13,.55);z-index:9}
+  .lock.on{display:flex}
+  .lock .n{font-size:88px;font-weight:700;color:#ffd6a8}
+  .lock .t{font-size:24px;color:#8d99a8;letter-spacing:2px}
+
+  .pass{position:absolute;inset:0;background:rgba(6,9,13,.96);display:none;
+    flex-direction:column;align-items:center;justify-content:center;gap:24px}
+  .pass.on{display:flex}
+  .pass .ok{font-size:92px;color:#22c55e}
+  .pass h2{font-size:50px;color:#fff;font-weight:700;letter-spacing:2px}
+  .pass p{font-size:25px;color:#8d99a8}
+</style>
+</head>
+<body>
+
+  <div class="film" id="film"></div>
+
+  <div class="gate" id="gate">
+    <div class="meta">
+      <div class="l1" id="subj">数学 · 单选</div>
+      <div class="l2" id="counter">01 / 01</div>
+    </div>
+
+    <div class="title">休息一下<span class="dot">·</span>答对才能继续</div>
+    <div class="hint" id="hint">按方向键选择，按确认作答</div>
+
+    <div class="stem" id="stem">…</div>
+
+    <div class="opts" id="opts"></div>
+
+    <div class="lock" id="lock"><div class="n" id="lockN">3</div><div class="t">冷静一下</div></div>
+
+    <div class="toast" id="toast"></div>
+
+    <div class="bar">
+      <span>答错 <b>+1</b> 道（最多 +2）</span>
+      <span>本期剩余 <b id="left">1</b> 道</span>
+    </div>
+  </div>
+
+  <div class="pass" id="pass">
+    <div class="ok">✓</div>
+    <h2>通过了，继续看吧</h2>
+    <p id="passSub">本轮全部答对 · 15 分钟后再次提醒</p>
+  </div>
+
+<script src="quiz-data.js"></script>
+<script>
+(function(){
+  const DATA   = (window.QUIZ && window.QUIZ.items) || [];
+  const gate   = document.getElementById('gate');
+  const passEl = document.getElementById('pass');
+  const stemEl = document.getElementById('stem');
+  const optsEl = document.getElementById('opts');
+  const leftEl = document.getElementById('left');
+  const cntEl  = document.getElementById('counter');
+  const subjEl = document.getElementById('subj');
+  const hintEl = document.getElementById('hint');
+  const toastEl= document.getElementById('toast');
+  const lockEl = document.getElementById('lock');
+  const lockN  = document.getElementById('lockN');
+  const film   = document.getElementById('film');
+
+  /* ---- 评审后的规则 ---- */
+  const LOCK_MS       = 1500;   // 弹出后锁输入，禁蒙题
+  const MAX_ADD       = 2;      // 答错最多补 2 道，防"越错越多"
+  const RATIO         = [['语文',35],['数学',40],['英语',25]];
+  const GUESS_MS      = 2000;   // 作答快于 2s 记疑似猜
+  /* 单元过滤：?units=第1单元,第2单元 —— 只出这些单元的题（Claude: 别出没学过的） */
+  const UNITS_FILTER  = (new URLSearchParams(location.search).get('units') || '')
+                          .split(',').map(s=>s.trim()).filter(Boolean);
+
+  let queue = [];        // 本轮待答
+  let cur = null;
+  let focus = -1;        // 无默认焦点：必须先按方向键
+  let busy = true;       // 锁，倒计时结束后才放
+  let added = 0;         // 本轮已补题数
+  let shownAt = 0;       // 出题时间戳
+  let guessStreak = 0;
+  const used = new Set();
+
+  /* ============ 持久化状态（关页面/重启电视都不丢）============ */
+  const LS_KEY = 'tv-gate-v1';
+  const QUOTA_WEEKDAY = 3;   // 工作日 3 轮 × 15 分钟 ≈ 45 分钟
+  const QUOTA_WEEKEND = 5;   // 周末 5 轮 ≈ 75 分钟
+  const COOLDOWN_MS   = 3 * 60 * 1000;  // 疑似猜 → 冷静 3 分钟
+  const GUESS_MAX     = 3;
+
+  function todayStr(){
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function loadState(){
+    let s = {};
+    try{ s = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); }catch(e){ s = {}; }
+    const t = todayStr();
+    if(s.day !== t){ s = { day: t, rounds: 0, cooldownUntil: 0, total: (s.total||0) }; }
+    s.rounds = s.rounds || 0;
+    s.cooldownUntil = s.cooldownUntil || 0;
+    return s;
+  }
+  function saveState(s){
+    try{ localStorage.setItem(LS_KEY, JSON.stringify(s)); }catch(e){}
+  }
+  let ST = loadState();
+
+  function todayQuota(){
+    const d = new Date().getDay();
+    return (d === 0 || d === 6) ? QUOTA_WEEKEND : QUOTA_WEEKDAY;
+  }
+
+
+  const $ = id => document.getElementById(id);
+  const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]];} return a; };
+
+  function pickSubject(){
+    const r = Math.random()*100;
+    let acc = 0;
+    for(const [s,w] of RATIO){ acc += w; if(r < acc) return s; }
+    return '语文';
+  }
+
+  function drawOne(except){
+    const units = UNITS_FILTER;
+    const base = units.length
+      ? DATA.filter(x => units.some(u => (x.u || '').indexOf(u) >= 0))
+      : DATA;
+    const SRC = base.length ? base : DATA;
+    for(let i=0;i<40;i++){
+      const s = pickSubject();
+      const pool = SRC.filter(x => x.s === s && x !== except && !used.has(x));
+      if(pool.length){ const q = pool[Math.random()*pool.length|0]; used.add(q); return q; }
+    }
+    const rest = SRC.filter(x => x !== except && !used.has(x));
+    if(!rest.length){ used.clear(); return SRC[Math.random()*SRC.length|0]; }
+    const q = rest[Math.random()*rest.length|0]; used.add(q); return q;
+  }
+
+  /* 补题：必须是同知识点的另一道；没有就换一道新题 */
+  function drawSameTopic(topic, except){
+    const pool = DATA.filter(x => x.topic === topic && x !== except && !used.has(x));
+    if(pool.length){ const q = pool[Math.random()*pool.length|0]; used.add(q); return q; }
+    return drawOne(except);
+  }
+
+  function paint(){
+    [...optsEl.children].forEach((el,i)=>el.classList.toggle('focus', i === focus && !busy));
+  }
+
+  function renderCurrent(){
+    busy = true; focus = -1;
+    stemEl.textContent = cur.q;
+    (function(){ var ql = cur.q.length;
+      stemEl.style.fontSize = ql > 40 ? "30px" : (ql > 30 ? "34px" : (ql > 20 ? "38px" : "44px"));
+    })();
+    subjEl.textContent = cur.s + ' · 单选';
+    const total = queue.length + 1;
+    cntEl.textContent = '01 / ' + String(total).padStart(2,'0');
+    leftEl.textContent = total;
+    optsEl.innerHTML = '';
+    cur.o.forEach((t,i)=>{
+      const d = document.createElement('div');
+      d.className = 'opt';
+      d.innerHTML = '<div class="key">' + 'ABCD'[i] + '</div><div class="txt"></div>';
+      var tx = d.querySelector(".txt");
+      tx.textContent = t;
+      tx.style.fontSize = t.length > 30 ? "24px" : (t.length > 20 ? "27px" : "32px");
+      optsEl.appendChild(d);
+    });
+    hintEl.textContent = '按方向键选择，按确认作答';
+    // 锁输入 1.5 秒，期间显示提示
+    setTimeout(()=>{ busy = false; shownAt = Date.now(); hintEl.textContent = '按方向键选择，按确认作答'; }, LOCK_MS);
+  }
+
+  function choose(){
+    if(busy || focus < 0) return;
+    busy = true;
+    const items = [...optsEl.children];
+    items.forEach(el=>el.classList.remove('focus'));
+    const picked = focus, right = cur.a;
+    const cost = Date.now() - shownAt;
+    const guess = cost < GUESS_MS;
+
+    if(picked === right){
+      items[picked].classList.add('right');
+      items.forEach((el,i)=>{ if(i!==picked) el.classList.add('dim'); });
+      guessStreak = guess ? guessStreak + 1 : 0;
+      if(guessStreak >= GUESS_MAX){   // 连续快速点对 → 判为乱蒙，冷静 3 分钟
+        ST = loadState();
+        ST.cooldownUntil = Date.now() + COOLDOWN_MS;
+        ST.rounds = (ST.rounds || 0) + 1;
+        saveState(ST);
+        showToast('连续猜题，冷静一下');
+        setTimeout(function(){ showCooldown(Math.ceil(COOLDOWN_MS/1000)); }, 1200);
+        return;
+      }
+      setTimeout(()=>{ queue.length ? next() : finish(); }, 900);
+    } else {
+      items[picked].classList.add('wrong');
+      items.forEach((el,i)=>{ if(i!==picked) el.classList.add('dim'); });
+      // 不直接亮答案；补题上限 2
+      if(added < MAX_ADD){
+        added++;
+        queue.push(drawSameTopic(cur.topic, cur));
+        showToast('答错了 · 再加一道（' + added + '/' + MAX_ADD + '）');
+        setTimeout(()=>next(), 1600);
+      } else {
+        showToast('答错太多次了，休息一下吧');
+        setTimeout(()=>{ next(); }, 1600);
+      }
+      guessStreak = guess ? guessStreak + 1 : 0;
+      if(guessStreak >= GUESS_MAX){
+        ST = loadState();
+        ST.cooldownUntil = Date.now() + COOLDOWN_MS;
+        ST.rounds = (ST.rounds || 0) + 1;
+        saveState(ST);
+        setTimeout(function(){ showCooldown(Math.ceil(COOLDOWN_MS/1000)); }, 1700);
+      }
+    }
+  }
+
+  function next(){
+    toastEl.classList.remove('on');
+    if(!queue.length){ finish(); return; }
+    cur = queue.shift();
+    renderCurrent();
+  }
+
+  let toastTimer = null;
+  function showToast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>toastEl.classList.remove('on'), 1500);
+  }
+
+  function finish(){
+    ST = loadState();
+    ST.rounds = (ST.rounds || 0) + 1;
+    saveState(ST);
+    // 原生壳：通知它关掉悬浮窗并重新计时
+    if(window.Android && window.Android.onRoundEnd){
+      try { window.Android.onRoundEnd('{"ok":true,"added":' + added + '}'); } catch(e){}
+      return;
+    }
+    gate.classList.add('hidden');
+    passEl.classList.add('on');
+    document.querySelector('.pass .ok').textContent = '✓';
+    document.querySelector('.pass h2').textContent = '通过了，继续看吧';
+    const q = todayQuota();
+    $('passSub').textContent = '本轮答 ' + (added + 1) + ' 道（含补题 ' + added + '）'
+      + ' · 今日已用 ' + ST.rounds + '/' + q + ' 轮';
+  }
+
+  let cdTimer = null;
+  function showCooldown(sec){
+    busy = true;
+    gate.classList.remove('hidden');
+    passEl.classList.remove('on');
+    lockEl.classList.add('on');
+    let n = Math.max(1, sec);
+    lockN.textContent = n;
+    clearInterval(cdTimer);
+    cdTimer = setInterval(function(){
+      n--;
+      lockN.textContent = n > 0 ? n : 0;
+      if(n <= 0){
+        clearInterval(cdTimer);
+        lockEl.classList.remove('on');
+        ST = loadState(); ST.cooldownUntil = 0; saveState(ST);
+        start();
+      }
+    }, 1000);
+  }
+
+  function start(){
+    ST = loadState();
+    // ① 冷静期没过完
+    const leftMs = ST.cooldownUntil - Date.now();
+    if(leftMs > 0){ showCooldown(Math.ceil(leftMs / 1000)); return; }
+    // ② 今日额度用完（Claude: 答题不能变成无限看电视的门票）
+    const quota = todayQuota();
+    if(ST.rounds >= quota){
+      gate.classList.add('hidden');
+      passEl.classList.add('on');
+      document.querySelector('.pass .ok').textContent = '⏳';
+      document.querySelector('.pass h2').textContent = '今天看够啦';
+      $('passSub').textContent = '今日额度 ' + ST.rounds + '/' + quota + ' 轮已用完 · 明天再来';
+      return;
+    }
+    used.clear(); added = 0; guessStreak = 0;
+    passEl.classList.remove('on');
+    gate.classList.remove('hidden');
+    lockEl.classList.remove('on');
+    queue = [];
+    cur = drawOne(null);
+    renderCurrent();
+  }
+
+  /* ===== 上线握手 + 视口上报 ===== */
+  (function(){
+    function hello(){
+      var vp = window.innerWidth + 'x' + window.innerHeight + ' dpr ' + (window.devicePixelRatio||1);
+      if(window.QG){ try{ QG.log('vp ' + vp); QG.ready(); }catch(e){} }
+      if(window.Android && window.Android.log){ try{ Android.log('vp ' + vp); }catch(e){} }
+    }
+    if(document.readyState === 'complete') setTimeout(hello, 60);
+    else window.addEventListener('load', function(){ setTimeout(hello, 60); });
+  })();
+
+  /* ===== 原生壳调用入口：遥控器按键走这里 ===== */
+  function qgLog(s){
+    try { if(window.QG) QG.log(s); } catch(e){}
+    try { if(window.console) console.log(s); } catch(e){}
+  }
+
+  window.handleKey = function(k){
+    if(gate.classList.contains('hidden')){
+      if(k === 'ok'){ start(); }
+      return;
+    }
+    if(busy) return;
+    const n = cur ? cur.o.length : 3;
+    if(k === 'up'){ focus = (focus < 0) ? 0 : Math.max(0, focus - 1); paint(); qgLog('focus ' + focus); return; }
+    if(k === 'down'){ focus = (focus < 0) ? 0 : Math.min(n - 1, focus + 1); paint(); qgLog('focus ' + focus); return; }
+    if(k === 'ok'){ choose(); return; }
+    if(k === 'back'){ /* 答题中不给退出 */ return; }
+  };
+
+  document.addEventListener('keydown', e=>{
+    if(gate.classList.contains('hidden')){
+      if(e.key === 'r' || e.key === 'R') start();
+      return;
+    }
+    // 拦返回键语义（浏览器里 Escape 模拟）
+    if(e.key === 'Escape'){ e.preventDefault(); return; }
+    if(busy) return;
+    const n = cur ? cur.o.length : 3;
+    if(e.key === 'ArrowUp'){ focus = (focus < 0) ? 0 : Math.max(0, focus-1); paint(); e.preventDefault(); }
+    if(e.key === 'ArrowDown'){ focus = (focus < 0) ? 0 : Math.min(n-1, focus+1); paint(); e.preventDefault(); }
+    if(e.key === 'Enter' || e.key === ' '){ choose(); e.preventDefault(); }
+    if(e.key === 'r' || e.key === 'R'){ start(); }
+  });
+
+  /* 演示背景 */
+  const img = new Image();
+  img.onload = ()=>{ film.style.backgroundImage = 'url("wall.jpg")'; };
+  img.src = 'wall.jpg';
+
+  start();
+
+  /* 自测开关：?auto=right / wrong / diag / still */
+  const QS = new URLSearchParams(location.search);
+  if(QS.get('still')) document.body.classList.add('still');
+  const AUTO = QS.get('auto');
+  if(AUTO){
+    setTimeout(function(){
+      if(!cur) return;
+      // 跳过输入锁
+      busy = false;
+      if(AUTO === 'right'){ focus = cur.a; }
+      else { focus = (cur.a + 1) % cur.o.length; }
+      paint();
+      choose();
+      if(AUTO === 'diag'){
+        setTimeout(function(){
+          document.title = [...optsEl.children].map(function(e){
+            return e.className.replace('opt','').trim() + '=' + getComputedStyle(e).backgroundColor;
+          }).join(' || ');
+        }, 200);
+      }
+    }, 1800);
+  }
+})();
+</script>
+</body>
+</html>
